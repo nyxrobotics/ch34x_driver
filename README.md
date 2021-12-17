@@ -71,8 +71,16 @@ Tested on:
 <br/>
 
 ## Installation
-
-See original readme.txt
+- Unplug all CH340 devices
+- Run below command
+```
+make
+sudo checkinstall -y
+```
+## Uninstall
+```
+sudo dpkg --purge ch341ser 
+```
 
 <br/>
 <br/>
