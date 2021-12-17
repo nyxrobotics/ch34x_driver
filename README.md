@@ -19,6 +19,21 @@ It's a manufacturer software of standard serial to usb chip marked CH340
 <br/>
 <br/>
 
+## Installation
+- Unplug all CH340 devices
+- Run below command
+```
+make
+sudo checkinstall -y
+```
+## Uninstall
+```
+sudo dpkg --purge ch34x_driver
+```
+
+<br/>
+<br/>
+
 ## Changes
 
 Added line  
@@ -66,21 +81,6 @@ Tested on:
 * Linux Mint 19.3 Cinnamon
 * Ubuntu 18.04.5 LTS
 * CentOS Linux release 8.3.2011
-
-<br/>
-<br/>
-
-## Installation
-- Unplug all CH340 devices
-- Run below command
-```
-make
-sudo checkinstall -y
-```
-## Uninstall
-```
-sudo dpkg --purge ch341ser 
-```
 
 <br/>
 <br/>
