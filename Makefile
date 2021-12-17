@@ -14,8 +14,7 @@ load:
 	insmod ch34x.ko
 install:
 	@if [ -f /lib/modules/$(KER_VER)/kernel/drivers/usb/serial/ch341.ko ] ; then modprobe -r ch341; fi;
-	@if [ -f /lib/modules/$(KER_VER)/kernel/drivers/usb/serial/ch340.ko ] ; then modprobe -r ch340; fi;
-	@echo "blacklist ch340\nblacklist ch341" > /etc/modprobe.d/ch34x.conf
+	@echo "blacklist ch341" > /etc/modprobe.d/ch34x.conf
 	$(MAKE) -C $(KER_SRC) INSTALL_MOD_DIR=$(MOD_DIR) M=$(PWD) modules_install
 unload:
 	rmmod ch34x
