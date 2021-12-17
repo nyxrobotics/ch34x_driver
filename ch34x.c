@@ -90,7 +90,6 @@ MODULE_AUTHOR("<tech@wch.cn>");
 //CH34x Baud Rate
 #define CH34x_BAUDRATE_FACTOR	1532620800
 #define CH34x_BAUDRATE_DIVMAX	3
-
 //#define DEBUG_CH34x
 #undef  DEBUG_CH34x
 
@@ -121,6 +120,37 @@ do{								\
 static int debug = 1;
 #endif
 
+//Baud Rate Calculation
+#define CH34x_OSC_FREQ    (12000000UL)
+#define CH34x_REG_BPS_PRE      0x12
+#define CH34x_REG_BPS_DIV      0x13
+#define CH34x_REG_LCR1         0x18
+#define CH34x_REG_LCR2         0x25
+//Baudrate Prescalers Table
+//Reference : https://githubhelp.com/nospam2000/ch341-baudrate-calculation
+struct ch34x_prescalers {
+        uint8_t reg_value;
+        uint32_t prescaler_divisor;
+};
+
+/*
+ * CH341A has 3 chained prescalers
+ * bit 0: disable prescaler factor *8
+ * bit 1: disable prescaler factor *64
+ * bit 2: disable prescaler factor *2
+ */
+static const struct ch34x_prescalers prescaler_table[] = {
+        { 7, 1 },
+        { 3, 2 },
+        { 6, 8 },
+        { 2, 16 },
+        { 5, 64 },
+        { 1, 128 },
+        { 4, 512 },
+        { 0, 1024 }
+};
+#define PRESCALER_TABLE_SIZE (sizeof(prescaler_table) / sizeof(prescaler_table[0]))
+// Source Codes
 static DECLARE_WAIT_QUEUE_HEAD(wq);
 static int wait_flag = 0;
 
@@ -346,54 +376,46 @@ static int set_control_lines( struct usb_serial *serial,
 
 	return retval;
 }
-
 static int ch34x_get_baud_rate( unsigned int baud_rate,
 		unsigned char *factor, unsigned char *divisor)
 {
-	unsigned char a;
-	unsigned char b;
-	unsigned long c;
+        uint8_t found_div;
+        uint8_t div_regvalue;
+        uint8_t prescaler_regvalue;
+        uint16_t prescaler_index;
 
-	switch ( baud_rate )
-    {
-	case 921600:
+        if (baud_rate < 46 || baud_rate > 3030000)
+                return -EINVAL;
 
-		a = 0xf3;
-		b = 7;
-		break;
+        found_div = 0;
+        // start with the smallest possible prescaler value to get the
+        // best precision at first match (largest mantissa value)
+        for (prescaler_index = 0; prescaler_index < ARRAY_SIZE(prescaler_table);
+                        ++prescaler_index) {
+                uint32_t prescaler;
+                uint32_t div;
 
-	case 307200:
+                prescaler = prescaler_table[prescaler_index].prescaler_divisor;
+                div = ((2UL * CH34x_OSC_FREQ)
+                        / (prescaler * baud_rate) + 1UL) / 2UL;
+                // when prescaler==1 the divisors from 8 to 2 are
+                // actually 16 to 4; skip them, use next prescaler
+                if (prescaler == 1 && div <= 8) {
+                        continue;
+                } else if (div <= 256 && div >= 2) {
+                        found_div = 1;
+                        prescaler_regvalue =
+                                prescaler_table[prescaler_index].reg_value | BIT(7);
+                        div_regvalue = 256 - div;
+                        break;
+                }
+        }
 
-		a = 0xd9;
-		b = 7;
-		break;
+        if (!found_div)
+                return -EINVAL;
 
-	default:
-
-		if ( baud_rate > 6000000/255 ) {
-			b = 3;
-			c = 6000000;
-		} else if ( baud_rate > 750000/255 ) {
-			b = 2;
-			c = 750000;
-		} else if (baud_rate > 93750/255) {
-			b = 1;
-			c = 93750;
-		} else {
-			b = 0;
-			c = 11719;
-		}
-
-		a = (unsigned char)(c / baud_rate);
-		if (a == 0 || a == 0xFF) return -EINVAL;
-		if ((c / a - baud_rate) > (baud_rate - c / (a + 1)))
-			a ++;
-		a = 256 - a;
-		break;
-	}
-
-	*factor = a;
-	*divisor = b;
+	*factor = prescaler_regvalue;
+	*divisor = div_regvalue;
 	return 0;
 }
 
